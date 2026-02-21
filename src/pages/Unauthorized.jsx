@@ -9,9 +9,9 @@ export default function Unauthorized({ user, onLogout }) {
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Rajdhani, sans-serif' }}>Access Denied</h1>
                 <p className="text-gray-500 mb-1">
-                    Your role — <span className="font-semibold text-gray-700">{user?.role}</span> — does not have access to the Fleet Manager Dashboard.
+                    Your role — <span className="font-semibold text-gray-700">{user?.role}</span> — does not have access to this section.
                 </p>
-                <p className="text-gray-400 text-sm mb-6">Only users with the <strong className="text-gray-600">Fleet Manager</strong> role can access this area.</p>
+                <p className="text-gray-400 text-sm mb-6">Please contact your administrator if you believe this is an error.</p>
                 <button
                     onClick={onLogout}
                     className="px-6 py-2.5 rounded-xl text-white font-semibold text-sm transition-all hover:scale-[1.02]"

@@ -29,7 +29,7 @@ export default function OperationalAnalytics({ vehicles, fuel, maintenance, trip
             const fuelC = vFuel.reduce((s, f) => s + f.cost, 0)
             const maintC = vMaint.reduce((s, m) => s + m.cost, 0)
             const totalOps = fuelC + maintC
-            const fuelEff = fuelL > 0 ? +(v.odometer / fuelL).toFixed(2) : 0
+            const fuelEff = fuelL > 0 ? +((v.odometer || 0) / fuelL).toFixed(2) : 0
             const roi = v.acqCost > 0 ? +((v.revenue - totalOps) / v.acqCost * 100).toFixed(1) : 0
             return { id: v.id, name: v.name, plate: v.plate, type: v.type, fuelL, fuelC, maintC, totalOps, fuelEff, roi, revenue: v.revenue, acqCost: v.acqCost }
         })
