@@ -2,6 +2,9 @@ import './index.css'
 import { useState, useEffect } from 'react'
 import FleetFlowAuth from './FleetFlowAuth'
 import FleetManagerDashboard from './FleetManagerDashboard'
+import DispatcherDashboard from './pages/DispatcherDashboard'
+import SafetyOfficerDashboard from './pages/SafetyOfficerDashboard'
+import FinancialAnalystDashboard from './pages/FinancialAnalystDashboard'
 import Unauthorized from './pages/Unauthorized'
 import { getMeApi } from './api/auth'
 
@@ -44,10 +47,27 @@ function App() {
   if (!currentUser) {
     return <FleetFlowAuth onLoginSuccess={login} />
   }
-  if (currentUser.roleKey !== 'manager') {
-    return <Unauthorized user={currentUser} onLogout={logout} />
+
+  const role = (currentUser.roleKey || currentUser.role || '').toLowerCase()
+
+  // Use exact match or startsWith to avoid conflicts
+  if (role === 'manager' || role.startsWith('manager')) {
+    return <FleetManagerDashboard user={currentUser} onLogout={logout} />
   }
-  return <FleetManagerDashboard user={currentUser} onLogout={logout} />
+
+  if (role === 'dispatcher' || role.startsWith('dispatcher')) {
+    return <DispatcherDashboard user={currentUser} onLogout={logout} />
+  }
+
+  if (role === 'safety' || role.startsWith('safety')) {
+    return <SafetyOfficerDashboard user={currentUser} onLogout={logout} />
+  }
+
+  if (role === 'finance' || role.startsWith('finance')) {
+    return <FinancialAnalystDashboard user={currentUser} onLogout={logout} />
+  }
+
+  return <Unauthorized user={currentUser} onLogout={logout} />
 }
 
 export default App

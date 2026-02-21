@@ -8,8 +8,8 @@ export const signupApi = (formData) => {
     return client.post('/auth/signup', formData);
 };
 
-export const googleAuthApi = (accessToken, profile) => {
-    return client.post('/auth/google', { accessToken, profile });
+export const googleAuthApi = (accessToken, profile, role, roleKey) => {
+    return client.post('/auth/google', { accessToken, profile, role, roleKey });
 };
 
 export const getMeApi = () => {

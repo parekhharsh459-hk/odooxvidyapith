@@ -203,23 +203,26 @@ const decodeJwt = (token) => {
     } catch { return null }
 }
 
-const GoogleBtn = ({ label = 'Continue with Google', onLoginSuccess, onError }) => {
+const GoogleBtn = ({ label = 'Continue with Google', onLoginSuccess, onError, onNeedRole }) => {
     const login = useGoogleLogin({
         onSuccess: async (tokenResponse) => {
             try {
                 // We send the access_token to the backend, which will verify it 
                 // and return our own JWT + user profile.
-                // NOTE: I'm updating the backend route logic to handle this.
                 const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                     headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
                 });
                 const profile = await res.json();
 
-                // Instead of idToken, we'll send the profile for this demo 
-                // to match the backend 'upsert' logic I already wrote.
-                // In a real app, you'd send the idToken or Code.
-                const result = await googleAuthApi(tokenResponse.access_token, profile);
-                onLoginSuccess(result);
+                // Check if user exists or needs role selection
+                if (onNeedRole) {
+                    // For signup flow, ask for role first
+                    onNeedRole(tokenResponse.access_token, profile);
+                } else {
+                    // For login flow, try to authenticate
+                    const result = await googleAuthApi(tokenResponse.access_token, profile);
+                    onLoginSuccess(result);
+                }
             } catch (err) {
                 onError?.(err || 'Google sign-in failed');
             }
@@ -250,6 +253,89 @@ const OrDivider = ({ label = 'or' }) => (
         <div className="flex-1 h-px bg-gray-200" />
     </div>
 );
+
+// ─── Google Role Selection Modal ──────────────────────────────────────────────
+const GoogleRoleModal = ({ profile, onComplete, onCancel }) => {
+    const [selectedRole, setSelectedRole] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!selectedRole) return;
+        setLoading(true);
+        try {
+            const roleData = ROLES.find(r => r.key === selectedRole);
+            await onComplete(selectedRole, roleData.label);
+        } catch (err) {
+            alert('Failed to complete signup');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl">
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4">
+                        {profile.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Rajdhani,sans-serif' }}>
+                        Welcome, {profile.name.split(' ')[0]}!
+                    </h2>
+                    <p className="text-gray-500 text-sm">Select your role to complete setup</p>
+                </div>
+
+                <div className="space-y-2 mb-6">
+                    {ROLES.map(role => (
+                        <button
+                            key={role.key}
+                            type="button"
+                            onClick={() => setSelectedRole(role.key)}
+                            className="w-full p-4 rounded-xl border text-left transition-all duration-200"
+                            style={{
+                                background: selectedRole === role.key ? '#F1F5F9' : '#F8FAFC',
+                                borderColor: selectedRole === role.key ? '#374151' : '#D1D5DB',
+                                boxShadow: selectedRole === role.key ? '0 0 0 2px #374151' : 'none'
+                            }}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="text-2xl">{role.emoji}</div>
+                                <div className="flex-1">
+                                    <div className="text-sm font-bold text-gray-900">{role.label}</div>
+                                    <div className="text-xs text-gray-500">{role.desc}</div>
+                                </div>
+                                {selectedRole === role.key && (
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-gray-900">
+                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                )}
+                            </div>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <DarkBtn
+                        onClick={handleSubmit}
+                        disabled={!selectedRole || loading}
+                        loading={loading}
+                        type="button"
+                    >
+                        {loading ? <><IconSpinner />COMPLETING...</> : 'CONTINUE'}
+                    </DarkBtn>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 const Toast = ({ message, onClose }) => {
@@ -291,7 +377,7 @@ const SignupSuccess = ({ user, onProceed }) => (
 );
 
 // ─── Post-Login Success ───────────────────────────────────────────────────────
-const LoginSuccess = ({ user, onLogout }) => {
+const LoginSuccess = ({ user, onLogout, onProceed }) => {
     const perms = ROLE_PERMISSIONS[user.roleKey] || { access: [], restricted: [] };
     return (
         <div className="flex flex-col items-center text-center py-2 fade-slide-right">
@@ -306,14 +392,14 @@ const LoginSuccess = ({ user, onLogout }) => {
                 {perms.access.map(p => <div key={p} className="flex items-center gap-2 text-sm text-green-700"><span>✅</span><span>{p}</span></div>)}
                 {perms.restricted.map(p => <div key={p} className="flex items-center gap-2 text-sm text-gray-400"><span>❌</span><span>{p}</span></div>)}
             </div>
-            <DarkBtn type="button">ENTER DASHBOARD →</DarkBtn>
+            <DarkBtn type="button" onClick={onProceed}>ENTER DASHBOARD →</DarkBtn>
             <button onClick={onLogout} className="text-gray-400 text-sm hover:text-gray-700 transition-colors mt-3">← Sign in as different user</button>
         </div>
     );
 };
 
 // ─── Login Form ───────────────────────────────────────────────────────────────
-const LoginForm = ({ users, onSuccess, prefillEmail, setPrefillEmail }) => {
+const LoginForm = ({ users, onSuccess, prefillEmail, setPrefillEmail, onGoogleNeedRole }) => {
     const [email, setEmail] = useState(prefillEmail || '');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
@@ -327,7 +413,13 @@ const LoginForm = ({ users, onSuccess, prefillEmail, setPrefillEmail }) => {
 
     useEffect(() => { if (prefillEmail) { setEmail(prefillEmail); setPrefillEmail(''); } }, [prefillEmail]);
 
-    const fillDemo = (card) => { setEmail(card.email); setSelCard(card.email); setErrors({}); setBanner(null); };
+    const fillDemo = (card) => {
+        setEmail(card.email);
+        setPassword('fleet123'); // Default password for demo users
+        setSelCard(card.email);
+        setErrors({});
+        setBanner(null);
+    };
 
     const validate = () => {
         const e = {};
@@ -343,15 +435,41 @@ const LoginForm = ({ users, onSuccess, prefillEmail, setPrefillEmail }) => {
         if (Object.keys(e).length) { setErrors(e); return; }
         setLoading(true); setBanner(null);
         try {
-            const data = await loginApi(email, password);
+            let data;
+            try {
+                data = await loginApi(email, password);
+            } catch (apiErr) {
+                // Fallback: if backend unreachable, validate against local DEMO_USERS
+                const localUser = DEMO_USERS.find(u => u.email === email && u.password === password);
+                if (!localUser) throw new Error('Invalid email or password');
+                data = {
+                    token: 'local-demo-token',
+                    user: { ...localUser }
+                };
+            }
             setBanner({ type: 'success', msg: `✅ Welcome back, ${data.user.name}!` });
-            setTimeout(() => onSuccess(data), 1000);
+            setTimeout(() => onSuccess(data), 800);
         } catch (err) {
             setShake(true);
-            setBanner({ type: 'error', msg: `❌ ${err || 'Login failed'}` });
+            setBanner({ type: 'error', msg: `❌ ${err.message || err || 'Login failed'}` });
             setTimeout(() => setShake(false), 600);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleSuccess = async (accessToken, profile) => {
+        try {
+            // Try to login with existing account
+            const result = await googleAuthApi(accessToken, profile);
+            onSuccess(result);
+        } catch (err) {
+            // If user doesn't exist, show role selection
+            if (onGoogleNeedRole) {
+                onGoogleNeedRole(accessToken, profile);
+            } else {
+                setBanner({ type: 'error', msg: '❌ Google sign-in failed' });
+            }
         }
     };
 
@@ -390,7 +508,12 @@ const LoginForm = ({ users, onSuccess, prefillEmail, setPrefillEmail }) => {
                 <DarkBtn loading={loading} disabled={loading}>{loading ? <><IconSpinner />AUTHENTICATING...</> : 'LOGIN'}</DarkBtn>
 
                 <OrDivider />
-                <GoogleBtn label="Continue with Google" onLoginSuccess={onSuccess} onError={(msg) => setBanner({ type: 'error', msg })} />
+                <GoogleBtn 
+                    label="Continue with Google" 
+                    onLoginSuccess={(result) => onSuccess(result)}
+                    onError={(msg) => setBanner({ type: 'error', msg })}
+                    onNeedRole={handleGoogleSuccess}
+                />
 
                 <div className="flex items-center gap-3 my-3">
                     <div className="flex-1 h-px bg-gray-200" /><span className="text-gray-400 text-xs whitespace-nowrap">— OR CONTINUE AS DEMO —</span><div className="flex-1 h-px bg-gray-200" />
@@ -534,7 +657,12 @@ const SignupForm = ({ users, setUsers, onSuccess, onGoogleSuccess }) => {
             <DarkBtn disabled={!isValid || loading} loading={loading}>{loading ? <><IconSpinner />CREATING ACCOUNT...</> : 'CREATE ACCOUNT'}</DarkBtn>
 
             <OrDivider />
-            <GoogleBtn label="Sign up with Google" onLoginSuccess={onGoogleSuccess} onError={(msg) => setBanner({ type: 'error', msg: msg })} />
+            <GoogleBtn 
+                label="Sign up with Google" 
+                onLoginSuccess={onGoogleSuccess} 
+                onError={(msg) => setBanner({ type: 'error', msg: msg })}
+                onNeedRole={onGoogleSuccess}
+            />
         </form>
     );
 };
@@ -547,6 +675,7 @@ export default function FleetFlowAuth({ onLoginSuccess }) {
     const [loggedInUser, setLoggedIn] = useState(null);
     const [signupDone, setSignupDone] = useState(null);
     const [prefillEmail, setPrefill] = useState('');
+    const [googleRoleModal, setGoogleRoleModal] = useState(null); // { accessToken, profile }
 
     const switchTab = t => { setPrevTab(tab); setTab(t); };
     const slideClass = tab === 'signup' && prevTab === 'login' ? 'fade-slide-right' : 'fade-slide-left';
@@ -560,6 +689,27 @@ export default function FleetFlowAuth({ onLoginSuccess }) {
             onLoginSuccess(user);
         } else {
             setLoggedIn(user);
+        }
+    };
+
+    // Handle Google auth with role selection
+    const handleGoogleNeedRole = (accessToken, profile) => {
+        setGoogleRoleModal({ accessToken, profile });
+    };
+
+    const handleGoogleRoleComplete = async (roleKey, roleLabel) => {
+        try {
+            const result = await googleAuthApi(
+                googleRoleModal.accessToken, 
+                googleRoleModal.profile,
+                roleLabel,
+                roleKey
+            );
+            setGoogleRoleModal(null);
+            handleLoginSuccess(result);
+        } catch (err) {
+            alert('Failed to complete Google signup');
+            setGoogleRoleModal(null);
         }
     };
 
@@ -621,8 +771,8 @@ export default function FleetFlowAuth({ onLoginSuccess }) {
                                     {/* Form */}
                                     <div key={tab} className={slideClass}>
                                         {tab === 'login'
-                                            ? <LoginForm users={users} onSuccess={handleLoginSuccess} prefillEmail={prefillEmail} setPrefillEmail={setPrefill} />
-                                            : <SignupForm users={users} setUsers={setUsers} onSuccess={setSignupDone} onGoogleSuccess={handleLoginSuccess} />
+                                            ? <LoginForm users={users} onSuccess={handleLoginSuccess} prefillEmail={prefillEmail} setPrefillEmail={setPrefill} onGoogleNeedRole={handleGoogleNeedRole} />
+                                            : <SignupForm users={users} setUsers={setUsers} onSuccess={setSignupDone} onGoogleSuccess={handleGoogleNeedRole} />
                                         }
                                     </div>
 
@@ -638,6 +788,15 @@ export default function FleetFlowAuth({ onLoginSuccess }) {
                     </div>
                 </div>
             </div>
+
+            {/* Google Role Selection Modal */}
+            {googleRoleModal && (
+                <GoogleRoleModal
+                    profile={googleRoleModal.profile}
+                    onComplete={handleGoogleRoleComplete}
+                    onCancel={() => setGoogleRoleModal(null)}
+                />
+            )}
         </div>
     );
 }
