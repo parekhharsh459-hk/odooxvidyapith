@@ -217,7 +217,7 @@ export default function CommandCenter({ vehicles, trips, maintenance, fuel, acti
                                     <td className="px-5 py-3 font-mono text-xs text-gray-600">{v.plate}</td>
                                     <td className="px-5 py-3 text-gray-600">{v.type}</td>
                                     <td className="px-5 py-3 text-gray-600">{v.region}</td>
-                                    <td className="px-5 py-3 text-gray-600">{v.odometer.toLocaleString()} km</td>
+                                    <td className="px-5 py-3 text-gray-600">{(v.odometer || 0).toLocaleString()} km</td>
                                     <td className="px-5 py-3"><StatusPill status={v.status} /></td>
                                 </tr>
                             ))}

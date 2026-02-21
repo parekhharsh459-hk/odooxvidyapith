@@ -148,8 +148,8 @@ export default function VehicleRegistry({ vehicles, setVehicles, addActivity }) 
                                     <td className="px-4 py-3 font-medium text-gray-800">{v.name}</td>
                                     <td className="px-4 py-3 font-mono text-xs text-gray-600 bg-gray-50">{v.plate}</td>
                                     <td className="px-4 py-3 text-gray-600">{v.type}</td>
-                                    <td className="px-4 py-3 text-gray-600">{v.capacity.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-gray-600">{v.odometer.toLocaleString()} km</td>
+                                    <td className="px-4 py-3 text-gray-600">{(v.capacity || 0).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-gray-600">{(v.odometer || 0).toLocaleString()} km</td>
                                     <td className="px-4 py-3 text-gray-600">{v.region}</td>
                                     <td className="px-4 py-3"><StatusPill status={v.status} /></td>
                                     <td className="px-4 py-3">
